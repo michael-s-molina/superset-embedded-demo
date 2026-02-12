@@ -12,6 +12,15 @@ export default defineConfig({
       }
     }
   },
+  preview: {
+    allowedHosts: process.env.VITE_ALLOWED_HOSTS?.split(',') || ['localhost'],
+    proxy: {
+      '/api': {
+        target: 'http://localhost:3001',
+        changeOrigin: true,
+      }
+    }
+  },
   optimizeDeps: {
     include: ['@superset-ui/embedded-sdk'],
   },

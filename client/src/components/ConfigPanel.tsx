@@ -1,8 +1,8 @@
-import { Form, Input, Button, Tooltip, Typography, Collapse, theme } from "antd";
+import { Form, Input, Button, Tooltip, Typography, Collapse, theme, Alert } from "antd";
 import { QuestionCircleOutlined, CheckCircleFilled } from "@ant-design/icons";
 import Editor from "@monaco-editor/react";
-import type { DashboardConfig } from "../types";
-import { useState, useEffect } from "react";
+import type { DashboardConfig, ServerConfig } from "../types";
+import { useState, useEffect, useMemo } from "react";
 
 const { Title } = Typography;
 const { useToken } = theme;
@@ -10,6 +10,7 @@ const { useToken } = theme;
 interface ConfigPanelProps {
   onApply: (config: DashboardConfig) => void;
   loading: boolean;
+  serverConfig: ServerConfig | null;
 }
 
 const DEFAULT_UI_CONFIG = JSON.stringify(
@@ -88,9 +89,14 @@ const CONFIG_STORAGE_KEY = "superset-embedded-demo-config";
 export const ConfigPanel: React.FC<ConfigPanelProps> = ({
   onApply,
   loading,
+  serverConfig,
 }) => {
   const { token } = useToken();
   const [form] = Form.useForm();
+
+  // Determine what fields are needed based on server config
+  const showDomains = !serverConfig?.supersetFrontendDomain || !serverConfig?.supersetApiDomain;
+  const showCredentials = !serverConfig?.jwtAuthEnabled;
 
   // Initialize state from localStorage
   const [domainsComplete, setDomainsComplete] = useState(false);
@@ -128,7 +134,12 @@ export const ConfigPanel: React.FC<ConfigPanelProps> = ({
     try {
       const saved = localStorage.getItem(CONFIG_STORAGE_KEY);
       if (saved) {
-        return JSON.parse(saved);
+        const parsed = JSON.parse(saved);
+        // Handle migration from old format with dashboardUuid
+        if (parsed.dashboardUuid && !parsed.dashboardId) {
+          parsed.dashboardId = parsed.dashboardUuid;
+        }
+        return parsed;
       }
     } catch (error) {
       console.error("Failed to load saved config:", error);
@@ -139,7 +150,6 @@ export const ConfigPanel: React.FC<ConfigPanelProps> = ({
       supersetUsername: "",
       supersetPassword: "",
       dashboardId: "",
-      dashboardUuid: "",
       rls: DEFAULT_RLS,
       uiConfig: DEFAULT_UI_CONFIG,
       permalinkDomain: "",
@@ -154,11 +164,21 @@ export const ConfigPanel: React.FC<ConfigPanelProps> = ({
       supersetUsername,
       supersetPassword,
       dashboardId,
-      dashboardUuid,
     } = values;
-    setDomainsComplete(Boolean(supersetFrontendDomain && supersetApiDomain));
-    setCredentialsComplete(Boolean(supersetUsername && supersetPassword));
-    setDashboardComplete(Boolean(dashboardId && dashboardUuid));
+
+    // Domains are complete if provided by server config OR filled in form
+    setDomainsComplete(
+      Boolean(serverConfig?.supersetFrontendDomain && serverConfig?.supersetApiDomain) ||
+      Boolean(supersetFrontendDomain && supersetApiDomain)
+    );
+
+    // Credentials are complete if JWT auth enabled OR filled in form
+    setCredentialsComplete(
+      Boolean(serverConfig?.jwtAuthEnabled) ||
+      Boolean(supersetUsername && supersetPassword)
+    );
+
+    setDashboardComplete(Boolean(dashboardId));
   };
 
   // Initialize validation state after form mounts
@@ -167,138 +187,176 @@ export const ConfigPanel: React.FC<ConfigPanelProps> = ({
     if (values && Object.keys(values).length > 0) {
       updateValidationState(values);
     }
-  }, [form]);
+  }, [form, serverConfig]);
 
   const allRequiredComplete = domainsComplete && credentialsComplete && dashboardComplete;
 
   const handleSubmit = (values: {
-    supersetFrontendDomain: string;
-    supersetApiDomain: string;
-    supersetUsername: string;
-    supersetPassword: string;
+    supersetFrontendDomain?: string;
+    supersetApiDomain?: string;
+    supersetUsername?: string;
+    supersetPassword?: string;
     dashboardId: string;
-    dashboardUuid: string;
     rls: string;
     uiConfig: string;
     permalinkDomain?: string;
   }) => {
+    // Use server config values if available, otherwise use form values
+    const frontendDomain = serverConfig?.supersetFrontendDomain || values.supersetFrontendDomain || "";
+    const apiDomain = serverConfig?.supersetApiDomain || values.supersetApiDomain || "";
+    const permalinkDomain = serverConfig?.permalinkDomain || values.permalinkDomain;
+
     onApply({
-      supersetFrontendDomain: values.supersetFrontendDomain.replace(/\/$/, ""),
-      supersetApiDomain: values.supersetApiDomain.replace(/\/$/, ""),
-      supersetUsername: values.supersetUsername,
-      supersetPassword: values.supersetPassword,
+      supersetFrontendDomain: frontendDomain.replace(/\/$/, ""),
+      supersetApiDomain: apiDomain.replace(/\/$/, ""),
+      supersetUsername: serverConfig?.jwtAuthEnabled ? undefined : values.supersetUsername,
+      supersetPassword: serverConfig?.jwtAuthEnabled ? undefined : values.supersetPassword,
       dashboardId: values.dashboardId,
-      dashboardUuid: values.dashboardUuid,
       rls: values.rls || DEFAULT_RLS,
       uiConfig: values.uiConfig || DEFAULT_UI_CONFIG,
-      permalinkDomain: values.permalinkDomain?.replace(/\/$/, "") || undefined,
+      permalinkDomain: permalinkDomain?.replace(/\/$/, "") || undefined,
     });
   };
 
-  const collapseItems = [
-    {
-      key: "domains",
-      forceRender: true,
-      label: (
-        <SectionHeader
-          title="Domains"
-          isComplete={domainsComplete}
-          successColor={token.colorSuccess}
-        />
-      ),
-      children: (
-        <>
-          <Form.Item
-            name="supersetFrontendDomain"
-            label={
-              <LabelWithTooltip
-                label="Superset Frontend Domain"
-                tooltip="The URL where Superset frontend is running (e.g., http://localhost:9000). This is where the dashboard iframe will load from."
-                secondaryColor={token.colorTextSecondary}
-              />
-            }
-            rules={[{ required: true, message: "Required" }]}
-            style={{ marginBottom: 12 }}
-          >
-            <Input placeholder="http://localhost:9000" />
-          </Form.Item>
+  const collapseItems = useMemo(() => {
+    const items = [];
 
-          <Form.Item
-            name="supersetApiDomain"
-            label={
-              <LabelWithTooltip
-                label="Superset API Domain"
-                tooltip="The URL where Superset backend API is running (e.g., http://localhost:8088). This is where guest tokens will be requested from."
-                secondaryColor={token.colorTextSecondary}
-              />
-            }
-            rules={[{ required: true, message: "Required" }]}
-            style={{ marginBottom: 12 }}
-          >
-            <Input placeholder="http://localhost:8088" />
-          </Form.Item>
+    // Only show Domains section if not fully configured via server
+    if (showDomains) {
+      items.push({
+        key: "domains",
+        forceRender: true,
+        label: (
+          <SectionHeader
+            title="Domains"
+            isComplete={domainsComplete}
+            successColor={token.colorSuccess}
+          />
+        ),
+        children: (
+          <>
+            {!serverConfig?.supersetFrontendDomain && (
+              <Form.Item
+                name="supersetFrontendDomain"
+                label={
+                  <LabelWithTooltip
+                    label="Superset Frontend Domain"
+                    tooltip="The URL where Superset frontend is running (e.g., http://localhost:9000). This is where the dashboard iframe will load from."
+                    secondaryColor={token.colorTextSecondary}
+                  />
+                }
+                rules={[{ required: true, message: "Required" }]}
+                style={{ marginBottom: 12 }}
+              >
+                <Input placeholder="http://localhost:9000" />
+              </Form.Item>
+            )}
 
-          <Form.Item
-            name="permalinkDomain"
-            label={
-              <LabelWithTooltip
-                label="Permalink Domain"
-                tooltip="Domain used for resolving dashboard permalinks. Defaults to Superset API Domain if left empty."
-                secondaryColor={token.colorTextSecondary}
-              />
-            }
-            style={{ marginBottom: 12 }}
-          >
-            <Input placeholder="Superset API Domain" />
-          </Form.Item>
-        </>
-      ),
-    },
-    {
-      key: "credentials",
-      forceRender: true,
-      label: (
-        <SectionHeader
-          title="Credentials"
-          isComplete={credentialsComplete}
-          successColor={token.colorSuccess}
-        />
-      ),
-      children: (
-        <>
-          <Form.Item
-            name="supersetUsername"
-            label={
-              <LabelWithTooltip
-                label="Username"
-                tooltip="Username for authentication with Superset API"
-                secondaryColor={token.colorTextSecondary}
-              />
-            }
-            rules={[{ required: true, message: "Required" }]}
-            style={{ marginBottom: 12 }}
-          >
-            <Input placeholder="admin" />
-          </Form.Item>
+            {!serverConfig?.supersetApiDomain && (
+              <Form.Item
+                name="supersetApiDomain"
+                label={
+                  <LabelWithTooltip
+                    label="Superset API Domain"
+                    tooltip="The URL where Superset backend API is running (e.g., http://localhost:8088). This is where guest tokens will be requested from."
+                    secondaryColor={token.colorTextSecondary}
+                  />
+                }
+                rules={[{ required: true, message: "Required" }]}
+                style={{ marginBottom: 12 }}
+              >
+                <Input placeholder="http://localhost:8088" />
+              </Form.Item>
+            )}
 
-          <Form.Item
-            name="supersetPassword"
-            label={
-              <LabelWithTooltip
-                label="Password"
-                tooltip="Password for authentication with Superset API"
-                secondaryColor={token.colorTextSecondary}
+            {!serverConfig?.permalinkDomain && (
+              <Form.Item
+                name="permalinkDomain"
+                label={
+                  <LabelWithTooltip
+                    label="Permalink Domain"
+                    tooltip="Domain used for resolving dashboard permalinks. Defaults to Superset API Domain if left empty."
+                    secondaryColor={token.colorTextSecondary}
+                  />
+                }
+                style={{ marginBottom: 12 }}
+              >
+                <Input placeholder="Superset API Domain" />
+              </Form.Item>
+            )}
+
+            {/* Show info about server-configured values */}
+            {serverConfig?.supersetFrontendDomain && (
+              <Alert
+                type="info"
+                showIcon
+                message={`Frontend: ${serverConfig.supersetFrontendDomain}`}
+                style={{ marginBottom: 8 }}
               />
-            }
-            rules={[{ required: true, message: "Required" }]}
-            style={{ marginBottom: 12 }}
-          >
-            <Input.Password placeholder="password" />
-          </Form.Item>
-        </>
-      ),
-    },
-    {
+            )}
+            {serverConfig?.supersetApiDomain && (
+              <Alert
+                type="info"
+                showIcon
+                message={`API: ${serverConfig.supersetApiDomain}`}
+                style={{ marginBottom: 8 }}
+              />
+            )}
+          </>
+        ),
+      });
+    }
+
+    // Only show Credentials section if JWT auth is not enabled
+    if (showCredentials) {
+      items.push({
+        key: "credentials",
+        forceRender: true,
+        label: (
+          <SectionHeader
+            title="Credentials"
+            isComplete={credentialsComplete}
+            successColor={token.colorSuccess}
+          />
+        ),
+        children: (
+          <>
+            <Form.Item
+              name="supersetUsername"
+              label={
+                <LabelWithTooltip
+                  label="Username"
+                  tooltip="Username for authentication with Superset API"
+                  secondaryColor={token.colorTextSecondary}
+                />
+              }
+              rules={[{ required: true, message: "Required" }]}
+              style={{ marginBottom: 12 }}
+            >
+              <Input placeholder="admin" />
+            </Form.Item>
+
+            <Form.Item
+              name="supersetPassword"
+              label={
+                <LabelWithTooltip
+                  label="Password"
+                  tooltip="Password for authentication with Superset API"
+                  secondaryColor={token.colorTextSecondary}
+                />
+              }
+              rules={[{ required: true, message: "Required" }]}
+              style={{ marginBottom: 12 }}
+            >
+              <Input.Password placeholder="password" />
+            </Form.Item>
+          </>
+        ),
+      });
+    }
+
+    // Dashboard section is always shown
+    items.push({
       key: "dashboard",
       forceRender: true,
       label: <SectionHeader title="Dashboard" isComplete={dashboardComplete} successColor={token.colorSuccess} />,
@@ -309,7 +367,7 @@ export const ConfigPanel: React.FC<ConfigPanelProps> = ({
             label={
               <LabelWithTooltip
                 label="Dashboard Embed ID"
-                tooltip="The embed ID from Superset's embed configuration UI"
+                tooltip="The embed UUID from Superset's embed configuration UI. This is used both for embedding and for guest token resource access."
                 secondaryColor={token.colorTextSecondary}
               />
             }
@@ -319,24 +377,20 @@ export const ConfigPanel: React.FC<ConfigPanelProps> = ({
             <Input placeholder="abc123-def456-..." />
           </Form.Item>
 
-          <Form.Item
-            name="dashboardUuid"
-            label={
-              <LabelWithTooltip
-                label="Dashboard UUID"
-                tooltip="The dashboard UUID used for guest token resource access"
-                secondaryColor={token.colorTextSecondary}
-              />
-            }
-            rules={[{ required: true, message: "Required" }]}
-            style={{ marginBottom: 12 }}
-          >
-            <Input placeholder="abc123-def456-..." />
-          </Form.Item>
+          {serverConfig?.jwtAuthEnabled && (
+            <Alert
+              type="info"
+              showIcon
+              message="JWT authentication is enabled. User identity is obtained from request headers."
+              style={{ marginBottom: 8 }}
+            />
+          )}
         </>
       ),
-    },
-    {
+    });
+
+    // Advanced section is always shown
+    items.push({
       key: "advanced",
       forceRender: true,
       label: <SectionHeader title="Advanced" isComplete={true} successColor={token.colorSuccess} />,
@@ -407,8 +461,28 @@ export const ConfigPanel: React.FC<ConfigPanelProps> = ({
           </Form.Item>
         </>
       ),
-    },
-  ];
+    });
+
+    return items;
+  }, [showDomains, showCredentials, serverConfig, domainsComplete, credentialsComplete, dashboardComplete, token, form, uiConfigValue, rlsValue]);
+
+  // Get the first collapse key for default expansion
+  const defaultCollapseKey = useMemo(() => {
+    if (showDomains) return "domains";
+    if (showCredentials) return "credentials";
+    return "dashboard";
+  }, [showDomains, showCredentials]);
+
+  // Generate tooltip message for disabled state
+  const disabledTooltipMessage = useMemo(() => {
+    const missing: string[] = [];
+    if (!domainsComplete && showDomains) missing.push("Domains");
+    if (!credentialsComplete && showCredentials) missing.push("Credentials");
+    if (!dashboardComplete) missing.push("Dashboard");
+    return missing.length > 0
+      ? `Please complete: ${missing.join(", ")}`
+      : "";
+  }, [domainsComplete, credentialsComplete, dashboardComplete, showDomains, showCredentials]);
 
   return (
     <div style={{ height: "100%", overflow: "auto", padding: 16 }}>
@@ -431,17 +505,13 @@ export const ConfigPanel: React.FC<ConfigPanelProps> = ({
       >
         <Collapse
           accordion
-          defaultActiveKey="domains"
+          defaultActiveKey={defaultCollapseKey}
           items={collapseItems}
         />
 
         <Form.Item style={{ marginTop: 16 }}>
           <Tooltip
-            title={
-              !allRequiredComplete
-                ? "Please complete all required sections (Domains, Credentials, and Dashboard)"
-                : ""
-            }
+            title={disabledTooltipMessage}
           >
             <Button
               type="primary"

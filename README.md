@@ -61,9 +61,61 @@ npm run build
 Create a `.env` file in the root directory (optional):
 
 ```bash
+# Server port (default: 3001)
 PORT=3001
 NODE_ENV=development
+
+# ==========================================
+# JWT Authentication (Optional)
+# ==========================================
+# When configured, the server will generate guest tokens locally
+# instead of requesting them from Superset's API.
+# This is useful when running behind an authenticating reverse proxy.
+
+# Path to a file containing the JWT signing secret (preferred)
+GUEST_TOKEN_SECRET_FILE=/path/to/secret
+
+# Or provide the secret inline (for development only)
+GUEST_TOKEN_SECRET=your-secret-key
+
+# JWT audience claim (optional, must match Superset's GUEST_TOKEN_JWT_AUDIENCE)
+GUEST_TOKEN_AUDIENCE=https://superset.example.com
+
+# Token expiration in seconds (default: 300 = 5 minutes)
+GUEST_TOKEN_EXPIRATION_SECONDS=300
+
+# HTTP header name for authenticated username (default: x-internalauth-username)
+# Set by the reverse proxy after authentication
+JWT_USERNAME_HEADER=x-internalauth-username
+
+# ==========================================
+# Pre-configured Domains (Optional)
+# ==========================================
+# When set, these values are used automatically and the corresponding
+# UI inputs are hidden from the configuration panel.
+
+# Superset frontend domain (where the iframe loads from)
+SUPERSET_FRONTEND_DOMAIN=http://localhost:9000
+
+# Superset API domain (where tokens are requested from)
+SUPERSET_API_DOMAIN=http://localhost:8088
+
+# Permalink domain (for resolving dashboard permalinks)
+PERMALINK_DOMAIN=http://localhost:9000
 ```
+
+### Authentication Modes
+
+The application supports two authentication modes:
+
+**1. Superset API Authentication (Default)**
+- User enters Superset username/password in the UI
+- Server requests guest tokens from Superset's `/api/v1/security/guest_token/` endpoint
+
+**2. JWT Signing (When `GUEST_TOKEN_SECRET` or `GUEST_TOKEN_SECRET_FILE` is set)**
+- Server generates guest tokens locally using a shared secret
+- Username is obtained from an HTTP header (set by reverse proxy)
+- No credentials UI is shown to the user
 
 ### Superset Setup
 
@@ -76,17 +128,18 @@ NODE_ENV=development
 
 1. **Start the application**: Run `npm run dev`
 2. **Open your browser**: Navigate to http://localhost:3000
-3. **Configure connection**:
-   - Enter your Superset domain (e.g., http://localhost:8088)
-   - Enter username and password
-   - Enter dashboard embed ID and UUID
-4. **Configure options** (optional):
+3. **Configure connection** (if not pre-configured via environment variables):
+   - Enter your Superset frontend domain (e.g., http://localhost:9000)
+   - Enter your Superset API domain (e.g., http://localhost:8088)
+   - Enter username and password (unless JWT auth is enabled)
+4. **Configure dashboard**:
+   - Enter the dashboard embed ID (from Superset's embed configuration)
+5. **Configure options** (optional):
    - Add RLS rules as JSON array
    - Customize UI config as JSON object
-   - Enable debug mode for console logs
-5. **Click "Apply Configuration"** to embed the dashboard
-6. **Monitor events**: View SDK events and responses in the right panel
-7. **Test SDK methods**: Use the buttons in the event panel to call SDK methods
+6. **Click "Apply Configuration"** to embed the dashboard
+7. **Monitor events**: View SDK events and responses in the right panel
+8. **Test SDK methods**: Use the buttons in the event panel to call SDK methods
 
 ## Project Structure
 

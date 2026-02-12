@@ -4,7 +4,8 @@ import { ConfigProvider, theme } from "antd";
 import { ConfigPanel } from "./components/ConfigPanel";
 import { DashboardContainer } from "./components/DashboardContainer";
 import { EventLogPanel } from "./components/EventLogPanel";
-import type { DashboardConfig, LogEvent, AvailableFeatures } from "./types";
+import { fetchServerConfig } from "./services/api";
+import type { DashboardConfig, LogEvent, AvailableFeatures, ServerConfig } from "./types";
 import "./styles/App.css";
 
 const { useToken } = theme;
@@ -36,32 +37,54 @@ function App() {
   const [loading, setLoading] = useState(false);
   const [availableFeatures, setAvailableFeatures] =
     useState<AvailableFeatures | null>(null);
+  const [serverConfig, setServerConfig] = useState<ServerConfig | null>(null);
 
-  // Load saved config on mount
+  // Fetch server config on mount
   useEffect(() => {
+    fetchServerConfig()
+      .then(setServerConfig)
+      .catch((error) => {
+        console.error("Failed to fetch server config:", error);
+      });
+  }, []);
+
+  // Load saved config on mount (after server config is loaded)
+  useEffect(() => {
+    if (!serverConfig) return;
+
     try {
       const savedConfig = localStorage.getItem(CONFIG_STORAGE_KEY);
       if (savedConfig) {
         const parsedConfig = JSON.parse(savedConfig) as DashboardConfig;
-        // Check if all required fields are filled
-        const isComplete = Boolean(
-          parsedConfig.supersetFrontendDomain &&
-            parsedConfig.supersetApiDomain &&
-            parsedConfig.supersetUsername &&
-            parsedConfig.supersetPassword &&
-            parsedConfig.dashboardId &&
-            parsedConfig.dashboardUuid
-        );
 
-        if (isComplete) {
-          // Auto-apply if complete
-          setConfig(parsedConfig);
+        // Check if domain fields are complete
+        const domainsComplete =
+          Boolean(serverConfig.supersetFrontendDomain && serverConfig.supersetApiDomain) ||
+          Boolean(parsedConfig.supersetFrontendDomain && parsedConfig.supersetApiDomain);
+
+        // Check if credentials are complete (not needed if JWT auth enabled)
+        const credentialsComplete =
+          Boolean(serverConfig.jwtAuthEnabled) ||
+          Boolean(parsedConfig.supersetUsername && parsedConfig.supersetPassword);
+
+        // Check if dashboard is complete
+        const dashboardComplete = Boolean(parsedConfig.dashboardId);
+
+        if (domainsComplete && credentialsComplete && dashboardComplete) {
+          // Apply server config values if available
+          const mergedConfig: DashboardConfig = {
+            ...parsedConfig,
+            supersetFrontendDomain: serverConfig.supersetFrontendDomain || parsedConfig.supersetFrontendDomain,
+            supersetApiDomain: serverConfig.supersetApiDomain || parsedConfig.supersetApiDomain,
+            permalinkDomain: serverConfig.permalinkDomain || parsedConfig.permalinkDomain,
+          };
+          setConfig(mergedConfig);
         }
       }
     } catch (error) {
       console.error("Failed to load saved config:", error);
     }
-  }, []);
+  }, [serverConfig]);
 
   const handleApplyConfig = useCallback((newConfig: DashboardConfig) => {
     setLoading(true);
@@ -101,7 +124,11 @@ function App() {
         >
           <ConfigProvider theme={themeConfig}>
             <ThemedPanel>
-              <ConfigPanel onApply={handleApplyConfig} loading={loading} />
+              <ConfigPanel
+                onApply={handleApplyConfig}
+                loading={loading}
+                serverConfig={serverConfig}
+              />
             </ThemedPanel>
           </ConfigProvider>
         </Panel>

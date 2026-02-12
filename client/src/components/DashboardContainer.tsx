@@ -111,18 +111,21 @@ export const DashboardContainer: React.FC<DashboardContainerProps> = ({
           uiConfig.emitDataMasks = true;
         }
 
-        // Create guest token fetcher (uses API domain)
+        // Create guest token fetcher
+        // Credentials are optional - when JWT auth is enabled on the server,
+        // they're not needed (the server gets user identity from headers)
         const getGuestToken = async () => {
           onLogEvent(
             createLogEvent("info", { message: "Fetching guest token..." })
           );
 
           const token = await fetchGuestToken({
+            dashboardId: config.dashboardId,
+            rls: rlsRules,
+            // Only include credentials if provided (not needed with JWT auth)
             supersetApiDomain: config.supersetApiDomain,
             supersetUsername: config.supersetUsername,
             supersetPassword: config.supersetPassword,
-            dashboardId: config.dashboardUuid,
-            rls: rlsRules,
           });
 
           onLogEvent(
@@ -154,14 +157,16 @@ export const DashboardContainer: React.FC<DashboardContainerProps> = ({
         );
 
         // Embed dashboard (uses Frontend domain)
-        const dashboard = (await embedDashboard({
+        // Note: resolvePermalinkUrl may not be in all SDK versions, so we cast to handle this
+        const embedOptions: Parameters<typeof embedDashboard>[0] & { resolvePermalinkUrl?: typeof resolvePermalinkUrl } = {
           id: config.dashboardId,
           supersetDomain: config.supersetFrontendDomain,
           mountPoint: mountPointRef.current!,
           fetchGuestToken: getGuestToken,
           dashboardUiConfig: uiConfig,
           resolvePermalinkUrl,
-        })) as EmbeddedDashboardInstance;
+        };
+        const dashboard = (await embedDashboard(embedOptions as Parameters<typeof embedDashboard>[0])) as EmbeddedDashboardInstance;
 
         dashboardRef.current = dashboard;
 
