@@ -2,7 +2,6 @@ import express from 'express';
 import cors from 'cors';
 import dotenv from 'dotenv';
 import guestTokenRouter from './routes/guestToken.js';
-import configRouter from './routes/config.js';
 import { errorHandler } from './middleware/errorHandler.js';
 
 dotenv.config();
@@ -32,7 +31,6 @@ app.use(express.json());
 
 // Routes
 app.use('/api', guestTokenRouter);
-app.use('/api', configRouter);
 
 // Health check
 app.get('/health', (_req, res) => {

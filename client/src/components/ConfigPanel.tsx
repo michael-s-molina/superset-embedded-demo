@@ -1,7 +1,7 @@
 import { Form, Input, Button, Tooltip, Typography, Collapse, theme, Alert } from "antd";
 import { QuestionCircleOutlined, CheckCircleFilled } from "@ant-design/icons";
 import Editor from "@monaco-editor/react";
-import type { DashboardConfig, ServerConfig } from "../types";
+import type { DashboardConfig, AppConfig } from "../types";
 import { useState, useEffect, useMemo } from "react";
 
 const { Title } = Typography;
@@ -10,7 +10,7 @@ const { useToken } = theme;
 interface ConfigPanelProps {
   onApply: (config: DashboardConfig) => void;
   loading: boolean;
-  serverConfig: ServerConfig | null;
+  appConfig: AppConfig;
 }
 
 const DEFAULT_UI_CONFIG = JSON.stringify(
@@ -89,14 +89,14 @@ const CONFIG_STORAGE_KEY = "superset-embedded-demo-config";
 export const ConfigPanel: React.FC<ConfigPanelProps> = ({
   onApply,
   loading,
-  serverConfig,
+  appConfig,
 }) => {
   const { token } = useToken();
   const [form] = Form.useForm();
 
   // Determine what fields are needed based on server config
-  const showDomains = !serverConfig?.supersetFrontendDomain || !serverConfig?.supersetApiDomain;
-  const showCredentials = !serverConfig?.jwtAuthEnabled;
+  const showDomains = !appConfig.supersetFrontendDomain || !appConfig.supersetApiDomain;
+  const showCredentials = !appConfig.jwtAuthEnabled;
 
   // Initialize state from localStorage
   const [domainsComplete, setDomainsComplete] = useState(false);
@@ -168,13 +168,13 @@ export const ConfigPanel: React.FC<ConfigPanelProps> = ({
 
     // Domains are complete if provided by server config OR filled in form
     setDomainsComplete(
-      Boolean(serverConfig?.supersetFrontendDomain && serverConfig?.supersetApiDomain) ||
+      Boolean(appConfig.supersetFrontendDomain && appConfig.supersetApiDomain) ||
       Boolean(supersetFrontendDomain && supersetApiDomain)
     );
 
     // Credentials are complete if JWT auth enabled OR filled in form
     setCredentialsComplete(
-      Boolean(serverConfig?.jwtAuthEnabled) ||
+      Boolean(appConfig.jwtAuthEnabled) ||
       Boolean(supersetUsername && supersetPassword)
     );
 
@@ -187,7 +187,7 @@ export const ConfigPanel: React.FC<ConfigPanelProps> = ({
     if (values && Object.keys(values).length > 0) {
       updateValidationState(values);
     }
-  }, [form, serverConfig]);
+  }, [form, appConfig]);
 
   const allRequiredComplete = domainsComplete && credentialsComplete && dashboardComplete;
 
@@ -202,15 +202,15 @@ export const ConfigPanel: React.FC<ConfigPanelProps> = ({
     permalinkDomain?: string;
   }) => {
     // Use server config values if available, otherwise use form values
-    const frontendDomain = serverConfig?.supersetFrontendDomain || values.supersetFrontendDomain || "";
-    const apiDomain = serverConfig?.supersetApiDomain || values.supersetApiDomain || "";
-    const permalinkDomain = serverConfig?.permalinkDomain || values.permalinkDomain;
+    const frontendDomain = appConfig.supersetFrontendDomain || values.supersetFrontendDomain || "";
+    const apiDomain = appConfig.supersetApiDomain || values.supersetApiDomain || "";
+    const permalinkDomain = appConfig.permalinkDomain || values.permalinkDomain;
 
     onApply({
       supersetFrontendDomain: frontendDomain.replace(/\/$/, ""),
       supersetApiDomain: apiDomain.replace(/\/$/, ""),
-      supersetUsername: serverConfig?.jwtAuthEnabled ? undefined : values.supersetUsername,
-      supersetPassword: serverConfig?.jwtAuthEnabled ? undefined : values.supersetPassword,
+      supersetUsername: appConfig.jwtAuthEnabled ? undefined : values.supersetUsername,
+      supersetPassword: appConfig.jwtAuthEnabled ? undefined : values.supersetPassword,
       dashboardId: values.dashboardId,
       rls: values.rls || DEFAULT_RLS,
       uiConfig: values.uiConfig || DEFAULT_UI_CONFIG,
@@ -235,7 +235,7 @@ export const ConfigPanel: React.FC<ConfigPanelProps> = ({
         ),
         children: (
           <>
-            {!serverConfig?.supersetFrontendDomain && (
+            {!appConfig.supersetFrontendDomain && (
               <Form.Item
                 name="supersetFrontendDomain"
                 label={
@@ -252,7 +252,7 @@ export const ConfigPanel: React.FC<ConfigPanelProps> = ({
               </Form.Item>
             )}
 
-            {!serverConfig?.supersetApiDomain && (
+            {!appConfig.supersetApiDomain && (
               <Form.Item
                 name="supersetApiDomain"
                 label={
@@ -269,7 +269,7 @@ export const ConfigPanel: React.FC<ConfigPanelProps> = ({
               </Form.Item>
             )}
 
-            {!serverConfig?.permalinkDomain && (
+            {!appConfig.permalinkDomain && (
               <Form.Item
                 name="permalinkDomain"
                 label={
@@ -286,19 +286,19 @@ export const ConfigPanel: React.FC<ConfigPanelProps> = ({
             )}
 
             {/* Show info about server-configured values */}
-            {serverConfig?.supersetFrontendDomain && (
+            {appConfig.supersetFrontendDomain && (
               <Alert
                 type="info"
                 showIcon
-                message={`Frontend: ${serverConfig.supersetFrontendDomain}`}
+                message={`Frontend: ${appConfig.supersetFrontendDomain}`}
                 style={{ marginBottom: 8 }}
               />
             )}
-            {serverConfig?.supersetApiDomain && (
+            {appConfig.supersetApiDomain && (
               <Alert
                 type="info"
                 showIcon
-                message={`API: ${serverConfig.supersetApiDomain}`}
+                message={`API: ${appConfig.supersetApiDomain}`}
                 style={{ marginBottom: 8 }}
               />
             )}
@@ -377,7 +377,7 @@ export const ConfigPanel: React.FC<ConfigPanelProps> = ({
             <Input placeholder="abc123-def456-..." />
           </Form.Item>
 
-          {serverConfig?.jwtAuthEnabled && (
+          {appConfig.jwtAuthEnabled && (
             <Alert
               type="info"
               showIcon
@@ -464,7 +464,7 @@ export const ConfigPanel: React.FC<ConfigPanelProps> = ({
     });
 
     return items;
-  }, [showDomains, showCredentials, serverConfig, domainsComplete, credentialsComplete, dashboardComplete, token, form, uiConfigValue, rlsValue]);
+  }, [showDomains, showCredentials, appConfig, domainsComplete, credentialsComplete, dashboardComplete, token, form, uiConfigValue, rlsValue]);
 
   // Get the first collapse key for default expansion
   const defaultCollapseKey = useMemo(() => {

@@ -1,5 +1,5 @@
-// Server configuration returned by /api/config
-export interface ServerConfig {
+// Server configuration injected at build time via Vite define
+export interface AppConfig {
   // Whether JWT signing is enabled (hides credentials UI)
   jwtAuthEnabled: boolean;
   // Pre-configured domains (when set, hides respective UI inputs)

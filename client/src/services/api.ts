@@ -1,34 +1,17 @@
 import axios from 'axios';
-import type { GuestTokenRequest, ServerConfig } from '../types';
+import type { GuestTokenRequest, AppConfig } from '../types';
 
 const apiClient = axios.create({
   baseURL: '/api',
   timeout: 30000,
 });
 
-// Cached server config
-let cachedServerConfig: ServerConfig | null = null;
-
 /**
- * Fetch the server configuration.
- * This tells the client how the server is configured (JWT auth, pre-configured domains, etc.)
+ * Server configuration, injected at build time from the same environment
+ * variables that the server reads (SUPERSET_FRONTEND_DOMAIN, SUPERSET_API_DOMAIN,
+ * PERMALINK_DOMAIN, GUEST_TOKEN_SECRET / GUEST_TOKEN_SECRET_FILE).
  */
-export const fetchServerConfig = async (): Promise<ServerConfig> => {
-  if (cachedServerConfig) {
-    return cachedServerConfig;
-  }
-
-  const response = await apiClient.get<ServerConfig>('/config');
-  cachedServerConfig = response.data;
-  return cachedServerConfig;
-};
-
-/**
- * Get cached server config (returns null if not yet fetched)
- */
-export const getCachedServerConfig = (): ServerConfig | null => {
-  return cachedServerConfig;
-};
+export const appConfig: AppConfig = __CONFIG__;
 
 export const fetchGuestToken = async (request: GuestTokenRequest): Promise<string> => {
   // Build request body based on what's provided

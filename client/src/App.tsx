@@ -4,8 +4,8 @@ import { ConfigProvider, theme } from "antd";
 import { ConfigPanel } from "./components/ConfigPanel";
 import { DashboardContainer } from "./components/DashboardContainer";
 import { EventLogPanel } from "./components/EventLogPanel";
-import { fetchServerConfig } from "./services/api";
-import type { DashboardConfig, LogEvent, AvailableFeatures, ServerConfig } from "./types";
+import { appConfig } from "./services/api";
+import type { DashboardConfig, LogEvent, AvailableFeatures } from "./types";
 import "./styles/App.css";
 
 const { useToken } = theme;
@@ -37,21 +37,8 @@ function App() {
   const [loading, setLoading] = useState(false);
   const [availableFeatures, setAvailableFeatures] =
     useState<AvailableFeatures | null>(null);
-  const [serverConfig, setServerConfig] = useState<ServerConfig | null>(null);
-
-  // Fetch server config on mount
+  // Load saved config on mount
   useEffect(() => {
-    fetchServerConfig()
-      .then(setServerConfig)
-      .catch((error) => {
-        console.error("Failed to fetch server config:", error);
-      });
-  }, []);
-
-  // Load saved config on mount (after server config is loaded)
-  useEffect(() => {
-    if (!serverConfig) return;
-
     try {
       const savedConfig = localStorage.getItem(CONFIG_STORAGE_KEY);
       if (savedConfig) {
@@ -59,12 +46,12 @@ function App() {
 
         // Check if domain fields are complete
         const domainsComplete =
-          Boolean(serverConfig.supersetFrontendDomain && serverConfig.supersetApiDomain) ||
+          Boolean(appConfig.supersetFrontendDomain && appConfig.supersetApiDomain) ||
           Boolean(parsedConfig.supersetFrontendDomain && parsedConfig.supersetApiDomain);
 
         // Check if credentials are complete (not needed if JWT auth enabled)
         const credentialsComplete =
-          Boolean(serverConfig.jwtAuthEnabled) ||
+          Boolean(appConfig.jwtAuthEnabled) ||
           Boolean(parsedConfig.supersetUsername && parsedConfig.supersetPassword);
 
         // Check if dashboard is complete
@@ -74,9 +61,9 @@ function App() {
           // Apply server config values if available
           const mergedConfig: DashboardConfig = {
             ...parsedConfig,
-            supersetFrontendDomain: serverConfig.supersetFrontendDomain || parsedConfig.supersetFrontendDomain,
-            supersetApiDomain: serverConfig.supersetApiDomain || parsedConfig.supersetApiDomain,
-            permalinkDomain: serverConfig.permalinkDomain || parsedConfig.permalinkDomain,
+            supersetFrontendDomain: appConfig.supersetFrontendDomain || parsedConfig.supersetFrontendDomain,
+            supersetApiDomain: appConfig.supersetApiDomain || parsedConfig.supersetApiDomain,
+            permalinkDomain: appConfig.permalinkDomain || parsedConfig.permalinkDomain,
           };
           setConfig(mergedConfig);
         }
@@ -84,7 +71,7 @@ function App() {
     } catch (error) {
       console.error("Failed to load saved config:", error);
     }
-  }, [serverConfig]);
+  }, []);
 
   const handleApplyConfig = useCallback((newConfig: DashboardConfig) => {
     setLoading(true);
@@ -127,7 +114,7 @@ function App() {
               <ConfigPanel
                 onApply={handleApplyConfig}
                 loading={loading}
-                serverConfig={serverConfig}
+                appConfig={appConfig}
               />
             </ThemedPanel>
           </ConfigProvider>
