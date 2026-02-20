@@ -84,9 +84,9 @@ GUEST_TOKEN_AUDIENCE=https://superset.example.com
 # Token expiration in seconds (default: 300 = 5 minutes)
 GUEST_TOKEN_EXPIRATION_SECONDS=300
 
-# HTTP header name for authenticated username (default: x-internalauth-username)
+# HTTP header name for authenticated username
 # Set by the reverse proxy after authentication
-JWT_USERNAME_HEADER=x-internalauth-username
+JWT_USERNAME_HEADER=x-username
 
 # ==========================================
 # Pre-configured Domains (Optional)

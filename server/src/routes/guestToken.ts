@@ -43,9 +43,9 @@ router.post('/guest-token', async (
     }
 
     // Check if JWT signing is enabled
-    if (isJwtSigningEnabled()) {
+    if (isJwtSigningEnabled() && JWT_USERNAME_HEADER) {
       // Get username from the configured header (set by reverse proxy after authentication)
-      const username = req.headers[JWT_USERNAME_HEADER.toLowerCase()];
+      const username = req.headers[JWT_USERNAME_HEADER];
       if (!username || typeof username !== 'string') {
         res.status(401).json({
           error: 'Not authenticated',

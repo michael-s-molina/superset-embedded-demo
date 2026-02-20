@@ -8,8 +8,8 @@ const GUEST_TOKEN_SECRET_FILE = process.env.GUEST_TOKEN_SECRET_FILE;
 const GUEST_TOKEN_SECRET = process.env.GUEST_TOKEN_SECRET;
 const GUEST_TOKEN_AUDIENCE = process.env.GUEST_TOKEN_AUDIENCE;
 
-// Configurable header name for username (default: x-internalauth-username)
-export const JWT_USERNAME_HEADER = process.env.JWT_USERNAME_HEADER || 'x-internalauth-username';
+// Configurable header name for username
+export const JWT_USERNAME_HEADER = process.env.JWT_USERNAME_HEADER;
 
 // Cached secret to avoid reading the file on every request
 let cachedSecret: string | null = null;
@@ -18,7 +18,7 @@ let cachedSecret: string | null = null;
  * Check if JWT signing is enabled (i.e., a secret is configured)
  */
 export const isJwtSigningEnabled = (): boolean => {
-  return Boolean(GUEST_TOKEN_SECRET_FILE || GUEST_TOKEN_SECRET);
+  return Boolean(JWT_USERNAME_HEADER && (GUEST_TOKEN_SECRET_FILE || GUEST_TOKEN_SECRET));
 };
 
 /**
