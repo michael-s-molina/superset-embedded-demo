@@ -8,10 +8,23 @@ dotenv.config();
 
 const app = express();
 const PORT = process.env.PORT || 3001;
+const CORS_ORIGIN = process.env.CORS_ORIGIN || 'http://localhost:3000';
+
+// Access logging middleware
+app.use((req, res, next) => {
+  const start = Date.now();
+  const originalEnd = res.end;
+  res.end = function (this: typeof res, ...args: unknown[]) {
+    const duration = Date.now() - start;
+    console.log(`[${new Date().toISOString()}] [server:${PORT}] ${req.method} ${req.url} ${res.statusCode} ${duration}ms`);
+    return originalEnd.apply(this, args as Parameters<typeof originalEnd>);
+  } as typeof res.end;
+  next();
+});
 
 // Middleware
 app.use(cors({
-  origin: 'http://localhost:3000',
+  origin: CORS_ORIGIN,
   credentials: true
 }));
 app.use(express.json());

@@ -1,10 +1,20 @@
+// Server configuration injected at build time via Vite define
+export interface AppConfig {
+  // Whether JWT signing is enabled (hides credentials UI)
+  jwtAuthEnabled: boolean;
+  // Pre-configured domains (when set, hides respective UI inputs)
+  supersetFrontendDomain?: string;
+  supersetApiDomain?: string;
+  permalinkDomain?: string;
+}
+
 export interface DashboardConfig {
   supersetFrontendDomain: string;  // Frontend domain (e.g., http://localhost:9000)
   supersetApiDomain: string;       // Backend API domain (e.g., http://localhost:8088)
-  supersetUsername: string;
-  supersetPassword: string;
-  dashboardId: string;
-  dashboardUuid: string;
+  // Credentials are optional when JWT auth is enabled
+  supersetUsername?: string;
+  supersetPassword?: string;
+  dashboardId: string;             // Dashboard embed ID (also used as UUID for guest token)
   rls: string;
   uiConfig: string;
   permalinkDomain?: string;        // Domain for resolving permalinks (defaults to Superset API Domain)
@@ -29,12 +39,14 @@ export interface AvailableFeatures {
   hasUnmount: boolean;
 }
 
+// Request body depends on server configuration
 export interface GuestTokenRequest {
-  supersetApiDomain: string;
-  supersetUsername: string;
-  supersetPassword: string;
   dashboardId: string;
   rls: Array<{ clause: string }>;
+  // Only included when JWT auth is NOT enabled
+  supersetApiDomain?: string;
+  supersetUsername?: string;
+  supersetPassword?: string;
 }
 
 // Generic type for the dashboard to handle different SDK versions
